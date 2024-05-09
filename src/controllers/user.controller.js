@@ -1,9 +1,8 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiErrors.js";
 import { User } from "../models/user.model.js";
-import {uploadOnCloudinary} from "../utils/cloudinary.js"
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { apiResponse } from "../utils/apiResponse.js";
-
 
 const registerUser = asyncHandler(async (req, res) => {
   /*1.details from frontend
@@ -18,50 +17,58 @@ const registerUser = asyncHandler(async (req, res) => {
 
     */
   const { fullName, email, userName, password } = req.body;
-  console.log("email", email);
+  // console.log("email", email);
 
   if (fullName === "" || email === "" || userName === "" || password === "") {
     throw new apiError(400, "fields must not be empty ");
   }
-  const existedUser = User.findOne({ $or: [{ userName }, { email }] });
+  const existedUser = await User.findOne({ $or: [{ userName }, { email }] });
 
   if (existedUser) {
     throw new apiError(409, "user already exists");
   }
 
-  const avatarLocalPath=req.files?.avatar[0]?.path;
-  const coverImageLocalPath =req.files?.coverImage[0]?.path
+  const avatarLocalPath = req.files?.avatar[0]?.path;
+  let coverImageLocalPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
+    coverImageLocalPath = req.files.coverImage[0].path;
+  }
+  // console.log(req.files);
 
-  if(!avatarLocalPath){
-    throw new apiError(400,"avatar missing")
+  if (!avatarLocalPath) {
+    throw new apiError(400, "avatar missing");
   }
 
-  const avatar=await uploadOnCloudinary(avatarLocalPath)
-  const coverImage=await uploadOnCloudinary(coverImageLocalPath)
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
-  if(!avatar){
-    throw new apiError(400,"avatar missing")
+  if (!avatar) {
+    throw new apiError(400, "avatar missing");
   }
 
-  //sending data to db 
-  const user=await User.create({
+  //sending data to db
+  const user = await User.create({
     fullName,
-    avatar:avatar.url,
-    coverImage:coverImage?.url ||"",
+    avatar: avatar.url,
+    coverImage: coverImage?.url || "",
     email,
     password,
-    userName:userName.toLowerCase()
-  })
-const createdUser= await User.findById(user._id).select
-("-password -refreshToken")
+    userName: userName.toLowerCase(),
+  });
+  const createdUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
 
-if(!createdUser){
-    throw new apiError(500,"something went wrong")
-}
-return res.status(201).json(
-    new apiResponse(200,createdUser,"user created successfully")
-)
-
+  if (!createdUser) {
+    throw new apiError(500, "something went wrong");
+  }
+  return res
+    .status(201)
+    .json(new apiResponse(200, createdUser, "user created successfully"));
 });
 
 export { registerUser };
